@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -40,65 +42,58 @@
  * @author  Josh Lockhart <info@joshlockhart.com>
  * @since   Version 1.0
  */
-class Router implements Iterator {
+class Slim_Router implements IteratorAggregate {
 
     /**
-     * @var Request
+     * @var Slim_Http_Request
      */
-    private $request;
+    protected $request;
 
     /**
      * @var array Lookup hash of routes, keyed by Request method
      */
-    private $routes;
+    protected $routes;
 
     /**
      * @var array Lookup hash of named routes, keyed by route name
      */
-    private $namedRoutes;
+    protected $namedRoutes;
 
     /**
      * @var array Array of routes that match the Request method and URL
      */
-    private $matchedRoutes;
+    protected $matchedRoutes;
 
     /**
      * @var mixed Callable to be invoked if no matching routes are found
      */
-    private $notFound;
+    protected $notFound;
 
     /**
      * @var mixed Callable to be invoked if application error
      */
-    private $error;
-
-    /**
-     * @var int Iterator position
-     */
-    private $position;
+    protected $error;
 
     /**
      * Constructor
-     *
-     * @param Request $request The HTTP request object
+     * @param Slim_Http_Request $request The HTTP request object
      */
-    public function __construct( Request $request ) {
+    public function __construct( Slim_Http_Request $request ) {
         $this->request = $request;
-        $this->routes = array(
-            'GET' => array(),
-            'POST' => array(),
-            'PUT' => array(),
-            'DELETE' => array()
-        );
-        $this->position = 0;
+        $this->routes = array();
     }
 
-    /***** ACCESSORS *****/
+    /**
+     * Get Iterator
+     * @return ArrayIterator
+     */
+    public function getIterator() {
+        return new ArrayIterator($this->getMatchedRoutes());
+    }
 
     /**
      * Get Request
-     *
-     * @return Request
+     * @return Slim_Http_Request
      */
     public function getRequest() {
         return $this->request;
@@ -106,27 +101,22 @@ class Router implements Iterator {
 
     /**
      * Set Request
-     *
-     * @param   Request
+     * @param   Slim_Http_Request   $req
      * @return  void
      */
-    public function setRequest( Request $req ) {
+    public function setRequest( Slim_Http_Request $req ) {
         $this->request = $req;
     }
 
-    /***** MAPPING *****/
-
     /**
      * Return routes that match the current request
-     *
-     * @return array[Route]
+     * @return array[Slim_Route]
      */
     public function getMatchedRoutes( $reload = false ) {
         if ( $reload || is_null($this->matchedRoutes) ) {
             $this->matchedRoutes = array();
-            $method = ( $this->getRequest()->method === Request::METHOD_HEAD ) ? Request::METHOD_GET : $this->getRequest()->method;
-            foreach( $this->routes[$method] as $route ) {
-                if ( $route->matches($this->getRequest()->resource) ) {
+            foreach ( $this->routes as $route ) {
+                if ( $route->matches($this->request->getResourceUri()) ) {
                     $this->matchedRoutes[] = $route;
                 }
             }
@@ -136,29 +126,25 @@ class Router implements Iterator {
 
     /**
      * Map a route to a callback function
-     *
-     * @param   string  $pattern    The URL pattern (ie. "/books/:id")
-     * @param   mixed   $callable   Anything that returns TRUE for is_callable()
-     * @param   string  $method     The HTTP request method (GET, POST, PUT, DELETE)
-     * @return  Route
+     * @param   string      $pattern    The URL pattern (ie. "/books/:id")
+     * @param   mixed       $callable   Anything that returns TRUE for is_callable()
+     * @return  Slim_Route
      */
-    public function map( $pattern, $callable, $method ) {
-        $route = new Route($pattern, $callable);
+    public function map( $pattern, $callable ) {
+        $route = new Slim_Route($pattern, $callable);
         $route->setRouter($this);
-        $methodKey = ( $method === Request::METHOD_HEAD ) ? Request::METHOD_GET : $method;
-        $this->routes[$methodKey][] = $route;
+        $this->routes[] = $route;
         return $route;
     }
 
     /**
      * Cache named route
-     *
      * @param   string              $name   The route name
-     * @param   Route               $route  The route object
+     * @param   Slim_Route          $route  The route object
      * @throws  RuntimeException            If a named route already exists with the same name
      * @return  void
      */
-    public function cacheNamedRoute( $name, Route $route ) {
+    public function cacheNamedRoute( $name, Slim_Route $route ) {
         if ( isset($this->namedRoutes[(string)$name]) ) {
             throw new RuntimeException('Named route already exists with name: ' . $name);
         }
@@ -167,7 +153,6 @@ class Router implements Iterator {
 
     /**
      * Get URL for named route
-     *
      * @param   string              $name   The name of the route
      * @param   array                       Associative array of URL parameter names and values
      * @throws  RuntimeException            If named route not found
@@ -178,15 +163,21 @@ class Router implements Iterator {
             throw new RuntimeException('Named route not found for name: ' . $name);
         }
         $pattern = $this->namedRoutes[(string)$name]->getPattern();
+        $search = $replace = array();
         foreach ( $params as $key => $value ) {
-            $pattern = str_replace(':' . $key, $value, $pattern);
+            $search[] = ':' . $key;
+            $replace[] = $value;
         }
-        return $this->getRequest()->root . $pattern;
+        $pattern = str_replace($search, $replace, $pattern);
+        //Remove remnants of unpopulated, trailing optional pattern segments
+        return preg_replace(array(
+            '@\(\/?:.+\/??\)\??@',
+            '@\?|\(|\)@'
+        ), '', $this->request->getRootUri() . $pattern);
     }
 
     /**
      * Register a 404 Not Found callback
-     *
      * @param   mixed $callable Anything that returns TRUE for is_callable()
      * @return  mixed
      */
@@ -199,7 +190,6 @@ class Router implements Iterator {
 
     /**
      * Register a 500 Error callback
-     *
      * @param   mixed $callable Anything that returns TRUE for is_callable()
      * @return  mixed
      */
@@ -210,54 +200,4 @@ class Router implements Iterator {
         return $this->error;
     }
 
-    /***** ITERATOR INTERFACE *****/
-
-    /**
-     * Return the current route being dispatched
-     *
-     * @return Route
-     */
-    public function current() {
-        return $this->matchedRoutes[$this->position];
-    }
-
-    /**
-     * Reset the current route to the first matching route
-     *
-     * @return void
-     */
-    public function rewind() {
-        $this->position = 0;
-    }
-
-    /**
-     * Return the 0-indexed position of the current route
-     * being dispatched among all matching routes
-     *
-     * @return int
-     */
-    public function key() {
-        return $this->position;
-    }
-
-    /**
-     * Return the 0-indexed position of the next route to
-     * be dispatched among all matching routes
-     *
-     * @return int
-     */
-    public function next() {
-        $this->position = $this->position + 1;
-    }
-
-    /**
-     * Does a matching route exist at a given 0-indexed position?
-     *
-     * @return bool
-     */
-    public function valid() {
-        return isset($this->matchedRoutes[$this->position]);
-    }
-
 }
-?>

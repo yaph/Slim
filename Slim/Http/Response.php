@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -44,37 +46,42 @@
  * @author  Kris Jordan <http://github.com/KrisJordan>
  * @since   Version 1.0
  */
-class Response {
+class Slim_Http_Response {
 
     /**
-     * @var Request
+     * @var Slim_Http_Request
      */
-    private $request;
+    protected $request;
+
+    /**
+     * @var string
+     */
+    protected $httpVersion = '1.1';
 
     /**
      * @var int HTTP status code
      */
-    private $status = 200;
+    protected $status = 200;
 
     /**
      * @var array Key-value array of HTTP response headers
      */
-    private $headers = array();
+    protected $headers = array();
 
     /**
      * @var string HTTP response body
      */
-    private $body = '';
+    protected $body = '';
 
     /**
      * @var int Length of HTTP response body
      */
-    private $length = 0;
+    protected $length = 0;
 
     /**
      * @var array HTTP response codes and messages
      */
-    private static $messages = array(
+    protected static $messages = array(
         //Informational 1xx
         100 => '100 Continue',
         101 => '101 Switching Protocols',
@@ -114,6 +121,8 @@ class Response {
         415 => '415 Unsupported Media Type',
         416 => '416 Requested Range Not Satisfiable',
         417 => '417 Expectation Failed',
+        422 => '422 Unprocessable Entity',
+        423 => '423 Locked',
         //Server Error 5xx
         500 => '500 Internal Server Error',
         501 => '501 Not Implemented',
@@ -131,16 +140,31 @@ class Response {
     /**
      * Constructor
      */
-    public function __construct( Request $req ) {
+    public function __construct( Slim_Http_Request $req ) {
         $this->request = $req;
         $this->header('Content-Type', 'text/html');
     }
 
-    /***** ACCESSORS *****/
+    /**
+     * Set and/or get the HTTP response version
+     * @param   string $version
+     * @return  void
+     * @throws  InvalidArgumentException If argument is not a valid HTTP version
+     */
+    public function httpVersion( $version = null ) {
+        if ( $version ) {
+            $version = (string)$version;
+            if ( $version === '1.0' || $version === '1.1' ) {
+                $this->httpVersion = $version;
+            } else {
+                throw new InvalidArgumentException('Invalid HTTP version in Response object');
+            }
+        }
+        return $this->httpVersion;
+    }
 
     /**
      * Set and/or get the HTTP response status code
-     *
      * @param   int $status
      * @return  int
      * @throws  InvalidArgumentException If argument is not a valid HTTP status code
@@ -157,7 +181,6 @@ class Response {
 
     /**
      * Get HTTP response headers
-     *
      * @return array
      */
     public function headers() {
@@ -166,7 +189,6 @@ class Response {
 
     /**
      * Get and/or set an HTTP response header
-     *
      * @param   string      $key    The header name
      * @param   string      $value  The header value
      * @return  string|null         The header value, or NULL if header not set
@@ -180,7 +202,6 @@ class Response {
 
     /**
      * Set the HTTP response body
-     *
      * @param   string $body    The new HTTP response body
      * @return  string          The new HTTP response body
      */
@@ -195,7 +216,6 @@ class Response {
 
     /**
      * Append the HTTP response body
-     *
      * @param   string $body    Content to append to the current HTTP response body
      * @return  string          The updated HTTP response body
      */
@@ -207,32 +227,25 @@ class Response {
         return $body;
     }
 
-    /***** COOKIES *****/
-
     /**
      * Set cookie jar
-     *
-     * @param   CookieJar $cookieJar
+     * @param   Slim_Http_CookieJar $cookieJar
      * @return  void
      */
-    public function setCookieJar( CookieJar $cookieJar ) {
+    public function setCookieJar( Slim_Http_CookieJar $cookieJar ) {
         $this->cookieJar = $cookieJar;
     }
 
     /**
      * Get cookie jar
-     *
-     * @return CookieJar
+     * @return Slim_Http_CookieJar
      */
     public function getCookieJar() {
         return $this->cookieJar;
     }
 
-    /***** FINALIZE BEFORE SENDING *****/
-
     /**
      * Finalize response headers before response is sent
-     *
      * @return void
      */
     public function finalize() {
@@ -242,11 +255,8 @@ class Response {
         }
     }
 
-    /***** HELPER METHODS *****/
-
     /**
      * Get message for HTTP status code
-     *
      * @return string|null
      */
     public static function getMessageForCode( $status ) {
@@ -255,31 +265,26 @@ class Response {
 
     /**
      * Can this HTTP response have a body?
-     *
      * @return bool
      */
     public function canHaveBody() {
         return ( $this->status < 100 || $this->status >= 200 ) && $this->status != 204 && $this->status != 304;
     }
 
-    /***** SEND RESPONSE *****/
-
     /**
      * Send headers for HTTP response
-     *
      * @return void
      */
     protected function sendHeaders() {
-
         //Finalize response
         $this->finalize();
 
         if ( substr(PHP_SAPI, 0, 3) === 'cgi') {
             //Send Status header if running with fastcgi
-            header('Status: ' . Response::getMessageForCode($this->status()));
+            header('Status: ' . self::getMessageForCode($this->status()));
         } else {
             //Else send HTTP message
-            header('HTTP/1.1 ' . Response::getMessageForCode($this->status()));
+            header(sprintf('HTTP/%s %s', $this->httpVersion, self::getMessageForCode($this->status())));
         }
 
         //Send headers
@@ -294,7 +299,6 @@ class Response {
 
         //Flush all output to client
         flush();
-
     }
 
     /**
@@ -309,11 +313,9 @@ class Response {
         if ( !headers_sent() ) {
             $this->sendHeaders();
         }
-        if ( $this->canHaveBody() && $this->request->method !== Request::METHOD_HEAD ) {
+        if ( $this->canHaveBody() && $this->request->isHead() === false ) {
             echo $this->body;
         }
     }
 
 }
-
-?>

@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -41,7 +43,7 @@
  * @author  Josh Lockhart <info@joshlockhart.com>
  * @since   Version 1.0
  */
-class View {
+class Slim_View {
 
     /**
      * @var array Key-value array of data available to the template
@@ -60,12 +62,9 @@ class View {
      */
     public function __construct() {}
 
-    /***** ACCESSORS *****/
-
     /**
      * Get data
-     *
-     * @param   string $key
+     * @param   string              $key
      * @return  array|mixed|null    All View data if no $key, value of datum
      *                              if $key, or NULL if $key but datum
      *                              does not exist.
@@ -91,9 +90,9 @@ class View {
      * View::setData(array('color' => 'red', 'number' => 1));
      *
      * @param   string|array
-     * @param   mixed Optional. Only use if first argument is a string.
+     * @param   mixed                       Optional. Only use if first argument is a string.
      * @return  void
-     * @throws  InvalidArgumentException If incorrect method signature
+     * @throws  InvalidArgumentException    If incorrect method signature
      */
     public function setData() {
         $args = func_get_args();
@@ -108,7 +107,6 @@ class View {
 
     /**
      * Append data to existing View data
-     *
      * @param   array $data
      * @return  void
      */
@@ -118,7 +116,6 @@ class View {
 
     /**
      * Get templates directory
-     *
      * @return string|null Path to templates directory without trailing slash
      */
     public function getTemplatesDirectory() {
@@ -127,19 +124,13 @@ class View {
 
     /**
      * Set templates directory
-     *
      * @param   string $dir
      * @return  void
      * @throws  RuntimeException If directory is not a directory or does not exist
      */
     public function setTemplatesDirectory( $dir ) {
-        if ( !is_dir($dir) ) {
-            throw new RuntimeException('Cannot set View templates directory to: ' . $dir . '. Directory does not exist.');
-        }
         $this->templatesDirectory = rtrim($dir, '/');
     }
-
-    /***** RENDERING *****/
 
     /**
      * Display template
@@ -155,7 +146,6 @@ class View {
 
     /**
      * Render template
-     *
      * @param   string $template    Path to template file relative to templates directory
      * @return  string              Rendered template
      * @throws  RuntimeException    If template does not exist
@@ -172,4 +162,3 @@ class View {
     }
 
 }
-?>

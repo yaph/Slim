@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -28,10 +30,11 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-require_once '../slim/Cookie.php';
-require_once 'PHPUnit/Extensions/OutputTestCase.php';
+set_include_path(dirname(__FILE__) . '/../../' . PATH_SEPARATOR . get_include_path());
 
-class CookieTest extends PHPUnit_Extensions_OutputTestCase   {
+require_once 'Slim/Http/Cookie.php';
+
+class CookieTest extends PHPUnit_Framework_TestCase {
 
     /**
      * Test cookie sets and gets properties
@@ -51,8 +54,8 @@ class CookieTest extends PHPUnit_Extensions_OutputTestCase   {
      */
     public function testNewCookie() {
         $hourFromNow = time() + 3600;
-        $c1 = new Cookie('foo1', 'bar1', time() + 3600, '/foo', 'domain.com', true, true);
-        $c2 = new Cookie('foo2', 'bar2', '1 hour', '/foo', 'domain.com', false, false);
+        $c1 = new Slim_Http_Cookie('foo1', 'bar1', $hourFromNow, '/foo', 'domain.com', true, true);
+        $c2 = new Slim_Http_Cookie('foo2', 'bar2', '1 hour', '/foo', 'domain.com', false, false);
         //Case A
         $this->assertEquals('foo1', $c1->getName());
         //Case B
@@ -60,7 +63,7 @@ class CookieTest extends PHPUnit_Extensions_OutputTestCase   {
         //Case C
         $this->assertEquals($hourFromNow, $c1->getExpires());
         //Case D
-        $this->assertEquals($hourFromNow, $c2->getExpires());
+        $this->assertGreaterThanOrEqual($hourFromNow, $c2->getExpires());
         //Case E
         $this->assertEquals('/foo', $c1->getPath());
         //Case F
@@ -74,5 +77,3 @@ class CookieTest extends PHPUnit_Extensions_OutputTestCase   {
     }
 
 }
-
-?>

@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -49,7 +51,7 @@
  *
  * @author Matthies Huguet <http://bigornot.blogspot.com/2008/06/security-cookies-and-rest.html>
  */
-class CookieJar {
+class Slim_Http_CookieJar {
 
     /**
      * @var string Server secret key
@@ -218,7 +220,7 @@ class CookieJar {
      */
     public function deleteCookie( $name, $path = '/', $domain = '', $secure = false, $httponly = null ) {
         $expire = 315554400; /* 1980-01-01 */
-        $this->_cookies[$name] = new Cookie($name, '', $path, $domain, $secure, $httponly);
+        $this->_cookies[$name] = new Slim_Http_Cookie($name, '', $expire, $path, $domain, $secure, $httponly);
         //setcookie($name, '', $expire, $path, $domain, $secure, $httponly);
     }
 
@@ -239,7 +241,7 @@ class CookieJar {
                 if ( (count($cookieValues) === 4) && ($cookieValues[1] == 0 || $cookieValues[1] >= time()) ) {
                     $key = hash_hmac('sha1', $cookieValues[0] . $cookieValues[1], $this->_secret);
                     $cookieData = base64_decode($cookieValues[2]);
-                    if ( $this->getHighConfidentiality() ) {
+                    if ( $cookieData !== '' && $this->getHighConfidentiality() ) {
                         $data = $this->_decrypt($cookieData, $key, md5($cookieValues[1]));
                     } else {
                         $data = $cookieData;
@@ -254,7 +256,7 @@ class CookieJar {
                     }
                 }
             } else {
-                return $_COOKIES[$cookiename];
+                return $_COOKIE[$cookiename];
             }
         }
         if ( $deleteIfInvalid ) {
@@ -277,10 +279,10 @@ class CookieJar {
     public function setClassicCookie( $cookiename, $value, $expire = 0, $path = '/', $domain = '', $secure = false, $httponly = null ) {
         /* httponly option is only available for PHP version >= 5.2 */
         if ( $httponly === null ) {
-            $this->_cookies[$cookiename] = new Cookie($cookiename, $value, $expire, $path, $domain, $secure);
+            $this->_cookies[$cookiename] = new Slim_Http_Cookie($cookiename, $value, $expire, $path, $domain, $secure);
             //setcookie($cookiename, $value, $expire, $path, $domain, $secure);
         } else {
-            $this->_cookies[$cookiename] = new Cookie($cookiename, $value, $expire, $path, $domain, $secure, $httponly);
+            $this->_cookies[$cookiename] = new Slim_Http_Cookie($cookiename, $value, $expire, $path, $domain, $secure, $httponly);
             //setcookie($cookiename, $value, $expire, $path, $domain, $secure, $httponly);
         }
     }
@@ -315,7 +317,7 @@ class CookieJar {
             $expire = strtotime($expire);
         }
         $key = hash_hmac('sha1', $username . $expire, $this->_secret);
-        if ( $this->getHighConfidentiality() ) {
+        if ( $value !== '' && $this->getHighConfidentiality() ) {
             $encryptedValue = base64_encode($this->_encrypt($value, $key, md5($expire)));
         } else {
             $encryptedValue = base64_encode($value);
@@ -341,7 +343,7 @@ class CookieJar {
         $iv = $this->_validateIv($iv);
         $key = $this->_validateKey($key);
         mcrypt_generic_init($this->_cryptModule, $key, $iv);
-        $res = mcrypt_generic($this->_cryptModule, $data);
+        $res = @mcrypt_generic($this->_cryptModule, $data);
         mcrypt_generic_deinit($this->_cryptModule);
         return $res;
     }
@@ -397,5 +399,3 @@ class CookieJar {
     }
 
 }
-
-?>

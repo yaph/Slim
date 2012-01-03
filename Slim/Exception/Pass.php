@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -29,39 +31,15 @@
  */
 
 /**
- * MustacheView
+ * Pass Exception
  *
- * The MustacheView is a Custom View class that renders templates using the
- * Mustache template language (http://mustache.github.com/) and the
- * [Mustache.php library](github.com/bobthecow/mustache.php).
- *
- * There is one field that you, the developer, will need to change:
- * - mustacheDirectory
+ * This Exception will cause the Router::dispatch method
+ * to skip the current matching route and continue to the next
+ * matching route. If no subsequent routes are found, a
+ * HTTP 404 Not Found response will be sent to the client.
  *
  * @package Slim
- * @author  Johnson Page <http://johnsonpage.org>
+ * @author  Josh Lockhart <info@joshlockhart.com>
+ * @since   Version 1.0
  */
-class MustacheView extends View {
-
-    /**
-     * @var string The path to the directory containing Mustache.php
-     */
-    public static $mustacheDirectory = null;
-
-    /**
-     * Renders a template using Mustache.php.
-     *
-     * @see View::render()
-     * @param string $template The template name specified in Slim::render()
-     * @return string
-     */
-    public function render( $template ) {
-        require_once self::$mustacheDirectory . '/Mustache.php';
-        $m = new Mustache();
-        $contents = file_get_contents($this->getTemplatesDirectory() . '/' . ltrim($template, '/'));
-        return $m->render($contents, $this->data);
-    }
-
-}
-
-?>
+class Slim_Exception_Pass extends Exception {}

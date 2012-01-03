@@ -29,18 +29,43 @@
  */
 
 /**
- * Request Slash Exception
+ * Session Cookie Handler
  *
- * This Exception is thrown when Slim detects a matching route
- * (defined with a trailing slash) and the HTTP request
- * matches the route but does not have a trailing slash. This
- * exception will be caught in `Slim::run` and trigger a 301 redirect
- * to the same resource URI with a trailing slash.
+ * This class is used as an adapter for PHP's $_SESSION handling.
+ * Session data will be written to and read from signed, encrypted
+ * cookies. If the current PHP installation does not have the `mcrypt`
+ * extension, session data will be written to signed but unencrypted
+ * cookies; however, the session cookies will still be secure and will
+ * become invalid if manually edited after set by PHP.
  *
  * @package Slim
- * @author  Josh Lockhart <info@joshlockhart.com>
- * @since   Version 1.0
+ * @author Josh Lockhart
+ * @since Version 1.3
  */
-class SlimRequestSlashException extends Exception {}
+class Slim_Session_Handler_Cookies extends Slim_Session_Handler {
 
-?>
+    public function open( $savePath, $sessionName ) {
+        return true;
+    }
+
+    public function close() {
+        return true; //Not used
+    }
+
+    public function read( $id ) {
+        return $this->app->getEncryptedCookie($id);
+    }
+
+    public function write( $id, $sessionData ) {
+        $this->app->setEncryptedCookie($id, $sessionData, 0);
+    }
+
+    public function destroy( $id ) {
+        $this->app->deleteCookie($id);
+    }
+
+    public function gc( $maxLifetime ) {
+        return true; //Not used
+    }
+
+}

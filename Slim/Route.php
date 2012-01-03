@@ -2,9 +2,11 @@
 /**
  * Slim - a micro PHP 5 framework
  *
- * @author      Josh Lockhart
- * @link        http://www.slimframework.com
+ * @author      Josh Lockhart <info@joshlockhart.com>
  * @copyright   2011 Josh Lockhart
+ * @link        http://www.slimframework.com
+ * @license     http://www.slimframework.com/license
+ * @version     1.5.0
  *
  * MIT LICENSE
  *
@@ -35,7 +37,7 @@
  * @author  Josh Lockhart <info@joshlockhart.com>
  * @since   Version 1.0
  */
-class Route {
+class Slim_Route {
 
     /**
      * @var string The route pattern (ie. "/books/:id")
@@ -68,13 +70,22 @@ class Route {
     protected $params = array();
 
     /**
-     * @var Router The Router to which this Route belongs
+     * @var array HTTP methods supported by this Route
+     */
+    protected $methods = array();
+
+    /**
+     * @var Slim_Router The Router to which this Route belongs
      */
     protected $router;
 
     /**
+     * @var array[Callable] Middleware
+     */
+    protected $middleware = array();
+
+    /**
      * Constructor
-     *
      * @param   string  $pattern    The URL pattern (ie. "/books/:id")
      * @param   mixed   $callable   Anything that returns TRUE for is_callable()
      */
@@ -84,11 +95,8 @@ class Route {
         $this->setConditions(self::getDefaultConditions());
     }
 
-    /***** CLASS METHODS *****/
-
     /**
      * Set default route conditions for all instances
-     *
      * @param   array $defaultConditions
      * @return  void
      */
@@ -98,7 +106,6 @@ class Route {
 
     /**
      * Get default route conditions for all instances
-     *
      * @return array
      */
     public static function getDefaultConditions() {
@@ -106,23 +113,7 @@ class Route {
     }
 
     /**
-     * Check whether PCRE extension was compiled with unicode support
-     * 
-     * @return bool
-     */
-    public static function checkPcreUnicodeSupport() {
-        static $pcreCheck;
-        if ( !isset($pcreCheck) ) {
-            $pcreCheck = (@preg_match('/\pL/u', 'a') == 1) ? true : false;
-        }
-        return $pcreCheck;
-    }
-
-    /***** INSTANCE ACCESSORS *****/
-
-    /**
      * Get route pattern
-     *
      * @return string
      */
     public function getPattern() {
@@ -131,7 +122,6 @@ class Route {
 
     /**
      * Set route pattern
-     *
      * @param   string $pattern
      * @return  void
      */
@@ -141,7 +131,6 @@ class Route {
 
     /**
      * Get route callable
-     *
      * @return mixed
      */
     public function getCallable() {
@@ -150,7 +139,6 @@ class Route {
 
     /**
      * Set route callable
-     *
      * @param   mixed $callable
      * @return  void
      */
@@ -160,7 +148,6 @@ class Route {
 
     /**
      * Get route conditions
-     *
      * @return array
      */
     public function getConditions() {
@@ -169,7 +156,6 @@ class Route {
 
     /**
      * Set route conditions
-     *
      * @param   array $conditions
      * @return  void
      */
@@ -179,7 +165,6 @@ class Route {
 
     /**
      * Get route name
-     *
      * @return string|null
      */
     public function getName() {
@@ -188,18 +173,16 @@ class Route {
 
     /**
      * Set route name
-     *
      * @param   string $name
      * @return  void
      */
     public function setName( $name ) {
         $this->name = (string)$name;
-        $this->getRouter()->cacheNamedRoute($name, $this);
+        $this->router->cacheNamedRoute($this->name, $this);
     }
 
     /**
      * Get route parameters
-     *
      * @return array
      */
     public function getParams() {
@@ -207,9 +190,52 @@ class Route {
     }
 
     /**
+     * Add supported HTTP method(s)
+     * @return void
+     */
+    public function setHttpMethods() {
+        $args = func_get_args();
+        $this->methods = $args;
+    }
+
+    /**
+     * Get supported HTTP methods
+     * @return array
+     */
+    public function getHttpMethods() {
+        return $this->methods;
+    }
+
+    /**
+     * Append supported HTTP methods
+     * @return void
+     */
+    public function appendHttpMethods() {
+        $args = func_get_args();
+        $this->methods = array_merge($this->methods, $args);
+    }
+
+    /**
+     * Append supported HTTP methods (alias for Route::appendHttpMethods)
+     * @return Slim_Route
+     */
+    public function via() {
+        $args = func_get_args();
+        $this->methods = array_merge($this->methods, $args);
+        return $this;
+    }
+
+    /**
+     * Detect support for an HTTP method
+     * @return bool
+     */
+    public function supportsHttpMethod( $method ) {
+        return in_array($method, $this->methods);
+    }
+
+    /**
      * Get router
-     *
-     * @return Router
+     * @return Slim_Router
      */
     public function getRouter() {
         return $this->router;
@@ -217,15 +243,46 @@ class Route {
 
     /**
      * Set router
-     *
-     * @param   Router $router
+     * @param   Slim_Router $router
      * @return  void
      */
-    public function setRouter( Router $router ) {
+    public function setRouter( Slim_Router $router ) {
         $this->router = $router;
     }
 
-    /***** ROUTE PARSING AND MATCHING *****/
+    /**
+     * Get middleware
+     * @return array[Callable]
+     */
+    public function getMiddleware() {
+        return $this->middleware;
+    }
+
+    /**
+     * Set middleware
+     *
+     * This method allows middleware to be assigned to a specific Route.
+     * If the method argument `is_callable` (including callable arrays!),
+     * we directly append the argument to `$this->middleware`. Else, we
+     * assume the argument is an array of callables and merge the array
+     * with `$this->middleware`. Even if non-callables are included in the
+     * argument array, we still merge them; we lazily check each item
+     * against `is_callable` during Route::dispatch().
+     *
+     * @param   Callable|array[Callable]
+     * @return  Slim_Route
+     * @throws  InvalidArgumentException If argument is not callable or not an array
+     */
+    public function setMiddleware( $middleware ) {
+        if ( is_callable($middleware) ) {
+            $this->middleware[] = $middleware;
+        } else if ( is_array($middleware) ) {
+            $this->middleware = array_merge($this->middleware, $middleware);
+        } else {
+            throw new InvalidArgumentException('Route middleware must be callable or an array of callables');
+        }
+        return $this;
+    }
 
     /**
      * Matches URI?
@@ -239,63 +296,50 @@ class Route {
      * @return  bool
      */
     public function matches( $resourceUri ) {
-
         //Extract URL params
-        preg_match_all('@:([\w]+)@', $this->getPattern(), $paramNames, PREG_PATTERN_ORDER);
+        preg_match_all('@:([\w]+)@', $this->pattern, $paramNames, PREG_PATTERN_ORDER);
         $paramNames = $paramNames[0];
 
         //Convert URL params into regex patterns, construct a regex for this route
-        $patternAsRegex = preg_replace_callback('@:[\w]+@', array($this, 'convertPatternToRegex'), $this->getPattern());
-        if ( substr($this->getPattern(), -1) === '/' ) {
+        $patternAsRegex = preg_replace_callback('@:[\w]+@', array($this, 'convertPatternToRegex'), $this->pattern);
+        if ( substr($this->pattern, -1) === '/' ) {
             $patternAsRegex = $patternAsRegex . '?';
         }
         $patternAsRegex = '@^' . $patternAsRegex . '$@';
-        if ( self::checkPcreUnicodeSupport() ) {
-            $patternAsRegex .= 'u';
-        }
 
         //Cache URL params' names and values if this route matches the current HTTP request
         if ( preg_match($patternAsRegex, $resourceUri, $paramValues) ) {
             array_shift($paramValues);
             foreach ( $paramNames as $index => $value ) {
-                if ( isset($paramValues[substr($value, 1)]) ) {
-                    $this->params[substr($value, 1)] = urldecode($paramValues[substr($value, 1)]);
+                $val = substr($value, 1);
+                if ( isset($paramValues[$val]) ) {
+                    $this->params[$val] = urldecode($paramValues[$val]);
                 }
             }
             return true;
         } else {
             return false;
         }
-
     }
 
     /**
      * Convert a URL parameter (ie. ":id") into a regular expression
-     *
      * @param   array   URL parameters
      * @return  string  Regular expression for URL parameter
      */
-    private function convertPatternToRegex( $matches ) {
+    protected function convertPatternToRegex( $matches ) {
         $key = str_replace(':', '', $matches[0]);
         if ( array_key_exists($key, $this->conditions) ) {
             return '(?P<' . $key . '>' . $this->conditions[$key] . ')';
         } else {
-            if ( self::checkPcreUnicodeSupport() ) {
-                $word_chars = '0-9_\pL';
-            } else {
-                $word_chars = '\w';
-            }
-            return '(?P<' . $key . '>[' . $word_chars . '\-\.\!\~\*\\\'\(\)\:\@\&\=\$\+,%]+)';
+            return '(?P<' . $key . '>[a-zA-Z0-9_\-\.\!\~\*\\\'\(\)\:\@\&\=\$\+,%]+)';
         }
     }
 
-    /***** HELPERS *****/
-
     /**
      * Set route name
-     *
      * @param   string $name The name of the route
-     * @return  Route
+     * @return  Slim_Route
      */
     public function name( $name ) {
         $this->setName($name);
@@ -304,42 +348,51 @@ class Route {
 
     /**
      * Merge route conditions
-     *
      * @param   array $conditions Key-value array of URL parameter conditions
-     * @return  Route
+     * @return  Slim_Route
      */
     public function conditions( array $conditions ) {
         $this->conditions = array_merge($this->conditions, $conditions);
         return $this;
     }
 
-    /***** DISPATCHING *****/
-
     /**
      * Dispatch route
      *
-     * This method is smart about trailing slashes. If this route is defined
-     * with a trailing slash, and if the current request URI does not have
-     * a trailing slash but otherwise matches this route, a SlimRequestSlashException
-     * will be thrown triggering a 301 Redirect to the same URI with a trailing slash.
-     * This exception is caught in the `Slim::run` loop. If this route is
-     * defined without a trailing slash, and the current request URI does
-     * have a trailing slash, this route will not be matched and a 404 Not Found
+     * This method invokes this route's callable. If middleware is
+     * registered for this route, each callable middleware is invoked in
+     * the order specified.
+     *
+     * This method is smart about trailing slashes on the route pattern. 
+     * If this route's pattern is defined with a trailing slash, and if the 
+     * current request URI does not have a trailing slash but otherwise 
+     * matches this route's pattern, a Slim_Exception_RequestSlash
+     * will be thrown triggering an HTTP 301 Permanent Redirect to the same 
+     * URI _with_ a trailing slash. This Exception is caught in the 
+     * `Slim::run` loop. If this route's pattern is defined without a 
+     * trailing slash, and if the current request URI does have a trailing 
+     * slash, this route will not be matched and a 404 Not Found
      * response will be sent if no subsequent matching routes are found.
      *
      * @return  bool Was route callable invoked successfully?
-     * @throws  SlimRequestSlashException
+     * @throws  Slim_Exception_RequestSlash
      */
     public function dispatch() {
-        if ( substr($this->getPattern(), -1) === '/' && substr($this->getRouter()->getRequest()->resource, -1) !== '/' ) {
-            throw new SlimRequestSlashException();
+        if ( substr($this->pattern, -1) === '/' && substr($this->router->getRequest()->getResourceUri(), -1) !== '/' ) {
+            throw new Slim_Exception_RequestSlash();
         }
+        //Invoke middleware
+        foreach ( $this->middleware as $mw ) {
+            if ( is_callable($mw) ) {
+                call_user_func($mw);
+            }
+        }
+        //Invoke callable
         if ( is_callable($this->getCallable()) ) {
-            call_user_func_array($this->getCallable(), array_values($this->getParams()));
+            call_user_func_array($this->callable, array_values($this->params));
             return true;
         }
         return false;
     }
 
 }
-?>
